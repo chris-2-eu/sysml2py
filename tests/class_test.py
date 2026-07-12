@@ -9,7 +9,7 @@ Created on Tue Jul 11 16:46:28 2023
 import pytest
 
 from sysml2py.formatting import classtree
-from sysml2py import Package, Item, Model, Attribute, Part, Port, UseCase, Actor
+from sysml2py import Package, Item, Model, Attribute, Part, Port, UseCase, Actor, Action
 from sysml2py import load_grammar as loads
 from sysml2py.grammar.classes import UseCaseDefinition, UseCaseUsage
 
@@ -689,3 +689,98 @@ def test_package_usecase_load_from_grammar():
 
     assert uc.name == "DriveVehicle"
     assert [a.name for a in uc.actors] == ["Driver"]
+
+
+def test_definition_body_consecutive_same_kind_members_all_load():
+    # Regression test: textX's `+=` (one-or-more repetition) merges
+    # consecutive same-kind body statements (e.g. two `part`s in a row)
+    # into a single OccurrenceUsageMember/DefinitionBodyItem rather than
+    # one each. An earlier implementation of Usage.load_from_grammar only
+    # took the first entry, silently dropping the rest.
+    text = """package Demo {
+       part def A;
+       part def B;
+       part def System {
+          part a : A;
+          part b : B;
+          part c : A;
+       }
+    }"""
+
+    q = Model().load(text)
+    system = q._get_child("Demo.System")
+
+    assert [c.name for c in system.children] == ["a", "b", "c"]
+    assert q.dump() == classtree(loads(text)).dump()
+
+
+def test_usage_body_consecutive_same_kind_members_all_load():
+    text = """package Demo {
+       item def Fuel;
+       part def System {
+          item f1 : Fuel;
+          item f2 : Fuel;
+       }
+       part sys : System;
+    }"""
+
+    q = Model().load(text)
+    system = q._get_child("Demo.System")
+
+    assert [c.name for c in system.children] == ["f1", "f2"]
+
+
+def test_connection_usage_load_and_dump():
+    text = """package Demo {
+       part def A {
+          port p1;
+       }
+       part def B {
+          port p2;
+       }
+       part def System {
+          part a : A;
+          part b : B;
+          connect a.p1 to b.p2;
+       }
+    }"""
+
+    q = Model().load(text)
+    system = q._get_child("Demo.System")
+
+    connections = [c for c in system.children if c.__class__.__name__ == "Connection"]
+    assert len(connections) == 1
+    assert connections[0].ends == ["a.p1", "b.p2"]
+    assert q.dump() == classtree(loads(text)).dump()
+
+
+def test_action_definition_successions_load_and_dump():
+    text = """package Demo {
+       action def DoStuff {
+          action step1;
+          then action step2;
+          then action step3;
+       }
+    }"""
+
+    q = Model().load(text)
+    action = q._get_child("Demo.DoStuff")
+
+    assert action.name == "DoStuff"
+    assert action.successions == [("step1", "step2"), ("step2", "step3")]
+    assert q.dump() == classtree(loads(text)).dump()
+
+
+def test_action_usage_nested_in_part_loads_and_dumps():
+    text = """package Demo {
+       part def Vehicle {
+          action step1;
+       }
+    }"""
+
+    q = Model().load(text)
+    vehicle = q._get_child("Demo.Vehicle")
+    actions = [c for c in vehicle.children if isinstance(c, Action)]
+
+    assert [a.name for a in actions] == ["step1"]
+    assert q.dump() == classtree(loads(text)).dump()

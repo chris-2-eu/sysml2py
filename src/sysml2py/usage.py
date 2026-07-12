@@ -52,6 +52,27 @@ from sysml2py.grammar.classes import (
     CaseBodyItem,
 )
 
+from sysml2py.grammar.classes import ConnectionUsage
+from sysml2py.grammar.classes import ActionDefinition, ActionUsage
+
+
+def reference_name(ors):
+    # Resolve the name an OwnedReferenceSubsetting points at (e.g. the use
+    # case referenced by `include <name>;`, or a connector end like
+    # `a.p1`). textX's PEG parser fills either `referencedFeature` (a
+    # single QualifiedName) or `elements` (a list of OwnedFeatureChain,
+    # segment-by-segment) depending on how the reference was written -
+    # both are seen in practice, so both are handled here.
+    if ors is None:
+        return None
+    if ors.referencedFeature is not None:
+        return "::".join(ors.referencedFeature.names)
+    parts = []
+    for chain in ors.elements:
+        for chaining in chain.feature.children:
+            parts.extend(chaining.chainingFeature.names)
+    return ".".join(parts) if parts else None
+
 
 class Usage:
     def __init__(self):
@@ -273,30 +294,30 @@ class Usage:
         #!TODO Typed By
         self.__init__()
         self.grammar = grammar
-        children = []
         if "usage" in self.grammar.__dict__:
             # This is a usage
             u_name = grammar.usage.declaration.declaration.identification.declaredName
-            a_children = grammar.usage.completion.body.body.children
-
-            for child in a_children:
-                children.append(child.children[0].children[0])
+            body_items = grammar.usage.completion.body.body.children
         else:
             # This is a definition
             u_name = grammar.definition.declaration.identification.declaredName
-            # grammar.definition.body.children is a list of DefinitionBodyItem
-            # objects, each wrapping exactly one OccurrenceUsageMember /
-            # NonOccurrenceUsageMember / DefinitionMember (`.children[0]`),
-            # which in turn wraps exactly one OccurrenceUsageElement /
-            # NonOccurrenceUsageElement / DefinitionElement (`.children[0]`
-            # again) - unwrap to that so the shared loop below (which
-            # expects one more `.children` hop to reach the actual
-            # AttributeUsage/StructureUsageElement/nested-definition object,
-            # matching what the usage branch above already produces) works
-            # the same way for both usages and definitions.
-            children = [
-                item.children[0].children[0] for item in grammar.definition.body.children
-            ]
+            body_items = grammar.definition.body.children
+
+        # body_items is a list of DefinitionBodyItem objects. Each wraps a
+        # list of OccurrenceUsageMember/NonOccurrenceUsageMember/
+        # DefinitionMember objects (usually one, but textX's `+=` is
+        # one-or-more repetition, so several consecutive same-kind body
+        # statements - e.g. two `part`s in a row - land as multiple
+        # entries in ONE DefinitionBodyItem's `.children`, not as separate
+        # DefinitionBodyItems). Each of those, in turn, wraps a list of
+        # OccurrenceUsageElement/NonOccurrenceUsageElement/DefinitionElement
+        # objects for the same reason. Flatten both levels fully instead of
+        # indexing `[0]`, or every body but the first statement of a run of
+        # same-kind statements is silently dropped.
+        children = []
+        for item in body_items:
+            for member in item.children:
+                children.extend(member.children)
 
         if u_name is not None:
             self.name = u_name
@@ -319,6 +340,8 @@ class Usage:
                 self.children.append(Attribute(definition=True).load_from_grammar(sc))
             elif sc.__class__.__name__ == "UseCaseDefinition":
                 self.children.append(UseCase().load_from_grammar(sc))
+            elif sc.__class__.__name__ == "ActionDefinition":
+                self.children.append(Action().load_from_grammar(sc))
             elif sc.__class__.__name__ == "StructureUsageElement":
                 if sc.children.__class__.__name__ == "PartUsage":
                     self.children.append(Part().load_from_grammar(sc.children))
@@ -326,8 +349,16 @@ class Usage:
                     self.children.append(Item().load_from_grammar(sc.children))
                 elif sc.children.__class__.__name__ == "PortUsage":
                     self.children.append(Port().load_from_grammar(sc.children))
+                elif sc.children.__class__.__name__ == "ConnectionUsage":
+                    self.children.append(Connection().load_from_grammar(sc.children))
                 else:
                     print(child.children.children.__class__.__name__)
+                    raise NotImplementedError
+            elif sc.__class__.__name__ == "BehaviorUsageElement":
+                if sc.children.__class__.__name__ == "ActionUsage":
+                    self.children.append(Action().load_from_grammar(sc.children))
+                else:
+                    print(sc.children.__class__.__name__)
                     raise NotImplementedError
             else:
                 print(sc.__class__.__name__)
@@ -679,6 +710,189 @@ class Port(Usage):
             self.grammar = PortUsage()
 
 
+class Connection:
+    """A `connect A to B;` binary connector, read-only.
+
+    ConnectionUsage has yet another bespoke grammar shape (its own
+    prefix/declaration/part/body, no `.usage`/`.definition` wrapper), so
+    this doesn't subclass Usage. Unlike Part/Item/Attribute/UseCase, there
+    is no from-scratch construction API here (no _set_name/add_*) - this
+    exists so (a) loading a Part containing a connection doesn't crash and
+    (b) callers (e.g. sysml2pyArchitect's context view) can read connector
+    endpoint references via `.ends`.
+    """
+
+    def __init__(self):
+        self.name = str(uuidlib.uuid4())
+        self.ends = []
+        self.grammar = None
+
+    def _get_definition(self, child=None):
+        package = {
+            "name": "StructureUsageElement",
+            "ownedRelatedElement": self.grammar.get_definition(),
+        }
+        package = {"name": "OccurrenceUsageElement", "ownedRelatedElement": package}
+
+        if child == "DefinitionBody":
+            package = {
+                "name": "OccurrenceUsageMember",
+                "prefix": None,
+                "ownedRelatedElement": [package],
+            }
+            package = {"name": "DefinitionBodyItem", "ownedRelationship": [package]}
+        elif child == "PackageBody" or child is None:
+            package = {"name": "UsageElement", "ownedRelatedElement": package}
+            package = {
+                "name": "PackageMember",
+                "ownedRelatedElement": package,
+                "prefix": None,
+            }
+
+        if child is None:
+            package = {
+                "name": "PackageBodyElement",
+                "ownedRelationship": [package],
+                "prefix": None,
+            }
+        return package
+
+    def dump(self, child=None):
+        return classtree(self._get_definition(child)).dump()
+
+    def load_from_grammar(self, grammar):
+        self.__init__()
+        self.grammar = grammar
+        if grammar.part is not None:
+            for end_member in grammar.part.part.children:
+                for end in end_member.children:
+                    for ref in end.children:
+                        if ref.__class__.__name__ == "OwnedReferenceSubsetting":
+                            self.ends.append(reference_name(ref))
+        return self
+
+
+class Action:
+    """An `action def X { ... }` / `action X { ... }` behavior, read-only.
+
+    Like Connection, ActionDefinition/ActionUsage have their own bespoke
+    grammar shape (no `.usage`/`.definition` wrapper), so this doesn't
+    subclass Usage, and there is no from-scratch construction API. Exists
+    so (a) loading a Part/Package containing an action doesn't crash and
+    (b) callers (e.g. sysml2pyArchitect's activity view) can read
+    successions between directly-nested actions via `.successions`
+    (`(from_name, to_name)` tuples, one per `then` between two sibling
+    `action` items in this action's own body).
+    """
+
+    def __init__(self):
+        self.name = str(uuidlib.uuid4())
+        self.successions = []
+        self.children = []
+        self.duration = None
+        self.grammar = None
+
+    def _is_definition(self):
+        return isinstance(self.grammar, ActionDefinition)
+
+    def _get_definition(self, child=None):
+        if self._is_definition():
+            package = {
+                "name": "DefinitionElement",
+                "ownedRelatedElement": self.grammar.get_definition(),
+            }
+            if child == "DefinitionBody":
+                package = {
+                    "name": "DefinitionMember",
+                    "prefix": None,
+                    "ownedRelatedElement": [package],
+                }
+                package = {"name": "DefinitionBodyItem", "ownedRelationship": [package]}
+            elif child == "PackageBody" or child is None:
+                package = {
+                    "name": "PackageMember",
+                    "ownedRelatedElement": package,
+                    "prefix": None,
+                }
+        else:
+            package = {
+                "name": "BehaviorUsageElement",
+                "ownedRelationship": self.grammar.get_definition(),
+            }
+            package = {"name": "OccurrenceUsageElement", "ownedRelatedElement": package}
+            if child == "DefinitionBody":
+                package = {
+                    "name": "OccurrenceUsageMember",
+                    "prefix": None,
+                    "ownedRelatedElement": [package],
+                }
+                package = {"name": "DefinitionBodyItem", "ownedRelationship": [package]}
+            elif child == "PackageBody" or child is None:
+                package = {"name": "UsageElement", "ownedRelatedElement": package}
+                package = {
+                    "name": "PackageMember",
+                    "ownedRelatedElement": package,
+                    "prefix": None,
+                }
+
+        if child is None:
+            package = {
+                "name": "PackageBodyElement",
+                "ownedRelationship": [package],
+                "prefix": None,
+            }
+        return package
+
+    def dump(self, child=None):
+        return classtree(self._get_definition(child)).dump()
+
+    def load_from_grammar(self, grammar):
+        self.__init__()
+        self.grammar = grammar
+
+        if self._is_definition():
+            identification = grammar.declaration.identification
+        else:
+            identification = grammar.declaration.declaration.declaration.identification
+        if identification is not None and identification.declaredName is not None:
+            self.name = identification.declaredName
+
+        previous_name = None
+        for item in grammar.body.children:
+            has_then = any(
+                member.__class__.__name__ == "EmptySuccessionMember"
+                for member in item.children
+            )
+            for member in item.children:
+                if member.__class__.__name__ == "ActionBodyItemTarget":
+                    behavior_member = member.children
+                    if behavior_member.__class__.__name__ != "BehaviorUsageMember":
+                        continue
+                    behavior = behavior_member.children[0].children
+                    if behavior.__class__.__name__ != "ActionUsage":
+                        continue
+                    nested = Action().load_from_grammar(behavior)
+                    self.children.append(nested)
+                    if has_then and previous_name is not None:
+                        self.successions.append((previous_name, nested.name))
+                    previous_name = nested.name
+                elif member.__class__.__name__ == "NonOccurrenceUsageMember":
+                    non_occurrence_element = member.children[0]
+                    attribute_usage = non_occurrence_element.children
+                    if attribute_usage.__class__.__name__ != "AttributeUsage":
+                        continue
+                    attr = Attribute().load_from_grammar(attribute_usage)
+                    if attr.name == "duration":
+                        try:
+                            self.duration = attr.get_value()
+                        except Exception:
+                            # Duration wasn't a simple `<number> [unit]`
+                            # literal that Attribute.get_value() can parse.
+                            self.duration = None
+
+        return self
+
+
 class Actor:
     """A SysML `actor` member of a use case.
 
@@ -845,20 +1059,7 @@ class UseCase:
 
     @staticmethod
     def _reference_name(ors):
-        # Resolve the use case name referenced by `include <name>;`.
-        # textX's PEG parser fills either `referencedFeature` (a single
-        # QualifiedName) or `elements` (a list of OwnedFeatureChain,
-        # segment-by-segment) depending on how the reference was written -
-        # both are seen in practice, so both are handled here.
-        if ors is None:
-            return None
-        if ors.referencedFeature is not None:
-            return "::".join(ors.referencedFeature.names)
-        parts = []
-        for chain in ors.elements:
-            for chaining in chain.feature.children:
-                parts.extend(chaining.chainingFeature.names)
-        return ".".join(parts) if parts else None
+        return reference_name(ors)
 
 
 class DefaultReference(Usage):

@@ -1573,6 +1573,14 @@ class ActionDefinition:
         output.append(self.body.dump())
         return " ".join(output)
 
+    def get_definition(self):
+        return {
+            "name": self.__class__.__name__,
+            "prefix": None,
+            "declaration": self.declaration.get_definition(),
+            "body": self.body.get_definition(),
+        }
+
 
 class ActionBody:
     def __init__(self, definition):
@@ -1586,6 +1594,12 @@ class ActionBody:
             return ";"
         else:
             return " {\n" + "\n".join([x.dump() for x in self.children]) + "\n}"
+
+    def get_definition(self):
+        return {
+            "name": self.__class__.__name__,
+            "items": [child.get_definition() for child in self.children],
+        }
 
 
 class ActionBodyItem:
@@ -1695,6 +1709,12 @@ class EmptySuccessionMember:
     def dump(self):
         return self.children.dump()
 
+    def get_definition(self):
+        return {
+            "name": self.__class__.__name__,
+            "ownedRelatedElement": [self.children.get_definition()],
+        }
+
 
 class EmptySuccession:
     def __init__(self, definition):
@@ -1710,6 +1730,14 @@ class EmptySuccession:
         for child in self.children:
             output.append(child.dump())
         return " ".join(output)
+
+    def get_definition(self):
+        # The `len(...) > 0` (non-empty source end) branch isn't exercised
+        # by any current caller (plain `then X;` always takes the empty
+        # branch) - only that tested shape is supported here.
+        if self.children:
+            raise NotImplementedError
+        return {"name": self.__class__.__name__, "ownedRelationship": []}
 
 
 class MultiplicitySourceEndMember:
@@ -2221,6 +2249,14 @@ class ActionUsage:
         output.append(self.body.dump())
         return " ".join(output)
 
+    def get_definition(self):
+        output = {"name": self.__class__.__name__, "prefix": None}
+        if self.prefix is not None:
+            output["prefix"] = self.prefix.get_definition()
+        output["declaration"] = self.declaration.get_definition()
+        output["body"] = self.body.get_definition()
+        return output
+
 
 class ActionUsageDeclaration:
     def __init__(self, definition):
@@ -2240,6 +2276,14 @@ class ActionUsageDeclaration:
         if self.valuepart is not None:
             output.append(self.valuepart.dump())
         return " ".join(output)
+
+    def get_definition(self):
+        output = {"name": self.__class__.__name__, "declaration": None, "valuepart": None}
+        if self.declaration is not None:
+            output["declaration"] = self.declaration.get_definition()
+        if self.valuepart is not None:
+            output["valuepart"] = self.valuepart.get_definition()
+        return output
 
 
 class FlowConnectionDefinition:
@@ -4858,6 +4902,22 @@ class ConnectionUsage:
 
         return " ".join(output)
 
+    def get_definition(self):
+        output = {
+            "name": self.__class__.__name__,
+            "prefix": None,
+            "declaration": None,
+            "part": None,
+        }
+        if self.prefix is not None:
+            output["prefix"] = self.prefix.get_definition()
+        if self.declaration is not None:
+            output["declaration"] = self.declaration.get_definition()
+        if self.part is not None:
+            output["part"] = self.part.get_definition()
+        output["body"] = self.body.get_definition()
+        return output
+
 
 class ConnectorPart:
     def __init__(self, definition):
@@ -4870,6 +4930,12 @@ class ConnectorPart:
     def dump(self):
         return self.part.dump()
 
+    def get_definition(self):
+        return {
+            "name": self.__class__.__name__,
+            "part": self.part.get_definition(),
+        }
+
 
 class BinaryConnectorPart:
     def __init__(self, definition):
@@ -4881,6 +4947,12 @@ class BinaryConnectorPart:
     def dump(self):
         return " to ".join([child.dump() for child in self.children])
 
+    def get_definition(self):
+        return {
+            "name": self.__class__.__name__,
+            "ownedRelationship": [child.get_definition() for child in self.children],
+        }
+
 
 class ConnectorEndMember:
     def __init__(self, definition):
@@ -4891,6 +4963,12 @@ class ConnectorEndMember:
 
     def dump(self):
         return "".join([child.dump() for child in self.children])
+
+    def get_definition(self):
+        return {
+            "name": self.__class__.__name__,
+            "ownedRelatedElement": [child.get_definition() for child in self.children],
+        }
 
 
 class ConnectorEnd:
@@ -4917,6 +4995,13 @@ class ConnectorEnd:
             output.append(child.dump())
 
         return " ".join(output)
+
+    def get_definition(self):
+        return {
+            "name": self.__class__.__name__,
+            "declaredName": self.declaredName,
+            "ownedRelationship": [child.get_definition() for child in self.children],
+        }
 
 
 class OwnedReferenceSubsetting:
