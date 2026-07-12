@@ -11,7 +11,7 @@ classes consistent with the [SysML v2.0 standard](https://github.com/Systems-Mod
 sysml2py requires the following Python packages:
 - [textX](https://github.com/textX/textX)
 - [pyyaml](https://github.com/yaml/pyyaml)
-- [astropy](https://github.com/astropy/astropy)
+- [pint](https://github.com/hgrecco/pint)
 
 ## Installation
 
@@ -36,7 +36,8 @@ Finally, we can dump the output from this class.
 ```
   from sysml2py import Attribute, Part
 
-  import astropy.units as u
+  import pint
+  u = pint.get_application_registry()
   a = Attribute()._set_name('mass')
   a.set_value(100*u.kg)
   b = Attribute()._set_name('thrust')
