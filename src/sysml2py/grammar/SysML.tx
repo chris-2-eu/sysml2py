@@ -2013,12 +2013,12 @@ FramedConcernUsage :
 ;
 
 ActorMember :
-	MemberPrefix
+	prefix=MemberPrefix
 	ownedRelatedElement += ActorUsage
 ;
 
 ActorUsage :
-      'actor' UsageExtensionKeyword* Usage
+      'actor' keyword+=UsageExtensionKeyword* usage=Usage
 ;
 
 StakeholderMember :
@@ -2213,19 +2213,21 @@ UseCaseUsageKeyword :
 ;
 
 UseCaseDefinition :
-	OccurrenceDefinitionPrefix UseCaseDefKeyword DefinitionDeclaration CaseBody
+	prefix=OccurrenceDefinitionPrefix UseCaseDefKeyword
+  declaration=DefinitionDeclaration body=CaseBody
 ;
 
 UseCaseUsage :
-	OccurrenceUsagePrefix UseCaseUsageKeyword CalculationUsageDeclaration CaseBody
+	prefix=OccurrenceUsagePrefix UseCaseUsageKeyword
+  declaration=CalculationUsageDeclaration body=CaseBody
 ;
 
 IncludeUseCaseUsage :
-	OccurrenceUsagePrefix 'include'
-   	( ownedRelationship += OwnedReferenceSubsetting FeatureSpecializationPart?
-   	| UseCaseUsageKeyword UsageDeclaration? )
-    ValuePart?
-	CaseBody
+	prefix=OccurrenceUsagePrefix 'include'
+   	( UseCaseUsageKeyword declaration=UsageDeclaration?
+   	| ors=OwnedReferenceSubsetting fsp=FeatureSpecializationPart? )
+    valuepart=ValuePart?
+	body=CaseBody
 ;
 
 /* VIEWS */

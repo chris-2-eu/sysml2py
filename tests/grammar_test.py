@@ -1913,7 +1913,75 @@ def test_Training_Analysis_Trade_Study_Analysis_Example():
     		
     		return part :>> selectedAlternative : Engine;
     	}
-    	
+
+    }"""
+    a = loads(text)
+    b = classtree(a)
+    assert strip_ws(text) == strip_ws(b.dump())
+
+
+def test_UseCaseDefinition_with_actor():
+    text = """package UseCaseDemo {
+    	part def System;
+
+    	use case def DriveVehicle {
+    		actor Driver;
+    	}
+    }"""
+    a = loads(text)
+    b = classtree(a)
+    assert strip_ws(text) == strip_ws(b.dump())
+
+
+def test_UseCaseUsage_typed_by_definition():
+    text = """package UseCaseDemo {
+    	part def System;
+
+    	use case def DriveVehicle {
+    		actor Driver;
+    	}
+
+    	part sys : System {
+    		use case uc1 : DriveVehicle;
+    	}
+    }"""
+    a = loads(text)
+    b = classtree(a)
+    assert strip_ws(text) == strip_ws(b.dump())
+
+
+def test_IncludeUseCaseUsage_keyword_form():
+    text = """package UseCaseDemo {
+    	part def System;
+
+    	part sys : System {
+    		include use case;
+    	}
+    }"""
+    a = loads(text)
+    b = classtree(a)
+    assert strip_ws(text) == strip_ws(b.dump())
+
+
+def test_IncludeUseCaseUsage_reference_form():
+    text = """package UseCaseDemo {
+    	use case def ValidateCredentials;
+
+    	use case def Login {
+    		include ValidateCredentials;
+    	}
+    }"""
+    a = loads(text)
+    b = classtree(a)
+    assert strip_ws(text) == strip_ws(b.dump())
+
+
+def test_UseCaseDefinition_multiple_actors():
+    text = """package UseCaseDemo {
+    	use case def ProcessOrder {
+    		actor Customer;
+    		actor Clerk;
+    	}
     }"""
     a = loads(text)
     b = classtree(a)

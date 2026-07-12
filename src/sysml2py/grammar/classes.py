@@ -168,6 +168,10 @@ class DefinitionElement:
                 self.children.append(
                     AnalysisCaseDefinition(definition["ownedRelatedElement"])
                 )
+            elif de == "UseCaseDefinition":
+                self.children.append(
+                    UseCaseDefinition(definition["ownedRelatedElement"])
+                )
             else:
                 print(de)  # pragma: no cover
                 raise NotImplementedError  # pragma: no cover
@@ -195,6 +199,33 @@ class AnalysisCaseDefinition:
     def __init__(self, definition):
         self.prefix = None
         self.keyword = "analysis def"
+        self.declaration = None
+        if valid_definition(definition, self.__class__.__name__):
+            if definition["prefix"] is not None:
+                self.prefix = OccurrenceDefinitionPrefix(definition["prefix"])
+            if definition["declaration"] is not None:
+                self.declaration = DefinitionDeclaration(definition["declaration"])
+            self.body = CaseBody(definition["body"])
+
+    def dump(self):
+        output = []
+        if self.prefix is not None:
+            output.append(self.prefix.dump())
+        output.append(self.keyword)
+        if self.declaration is not None:
+            output.append(self.declaration.dump())
+        output.append(self.body.dump())
+        return " ".join(output)
+
+
+class UseCaseDefinition:
+    # UseCaseDefinition :
+    # 	prefix=OccurrenceDefinitionPrefix UseCaseDefKeyword
+    #   declaration=DefinitionDeclaration body=CaseBody
+    # ;
+    def __init__(self, definition):
+        self.prefix = None
+        self.keyword = "use case def"
         self.declaration = None
         if valid_definition(definition, self.__class__.__name__):
             if definition["prefix"] is not None:
@@ -418,6 +449,48 @@ class SubjectUsage:
     def dump(self):
         return " ".join(
             [self.subject] + [x.dump() for x in self.keyword] + [self.child.dump()]
+        )
+
+
+class ActorMember:
+    # ActorMember :
+    # 	prefix=MemberPrefix
+    #   ownedRelatedElement += ActorUsage
+    # ;
+    # Note: `+=` in textX means one-or-more repetition, so a single
+    # ActorMember can consume several consecutive `actor X;` statements.
+    def __init__(self, definition):
+        self.prefix = None
+        if valid_definition(definition, self.__class__.__name__):
+            if definition["prefix"] is not None:
+                self.prefix = MemberPrefix(definition["prefix"])
+            self.children = [
+                ActorUsage(item) for item in definition["ownedRelatedElement"]
+            ]
+
+    def dump(self):
+        output = []
+        if self.prefix is not None:
+            output.append(self.prefix.dump())
+        output.extend(child.dump() for child in self.children)
+        return " ".join(output)
+
+
+class ActorUsage:
+    # ActorUsage :
+    # 	'actor' keyword+=UsageExtensionKeyword* usage=Usage
+    # ;
+    def __init__(self, definition):
+        self.actor = "actor"
+        self.keyword = []
+        if valid_definition(definition, self.__class__.__name__):
+            for keyword in definition["keyword"]:
+                self.keyword.append(UsageExtensionKeyword(keyword))
+            self.child = Usage(definition["usage"])
+
+    def dump(self):
+        return " ".join(
+            [self.actor] + [x.dump() for x in self.keyword] + [self.child.dump()]
         )
 
 
@@ -1789,6 +1862,78 @@ class AnalysisCaseUsage:
         output.append(self.declaration.dump())
         output.append(self.body.dump())
         return " ".join(output)
+
+
+class UseCaseUsage:
+    # UseCaseUsage :
+    # 	prefix=OccurrenceUsagePrefix UseCaseUsageKeyword
+    #   declaration=CalculationUsageDeclaration body=CaseBody
+    # ;
+    def __init__(self, definition):
+        self.prefix = None
+        self.keyword = "use case"
+        if valid_definition(definition, self.__class__.__name__):
+            if definition["prefix"] is not None:
+                self.prefix = OccurrenceUsagePrefix(definition["prefix"])
+            self.declaration = CalculationUsageDeclaration(definition["declaration"])
+            self.body = CaseBody(definition["body"])
+
+    def dump(self):
+        output = []
+        if self.prefix is not None:
+            output.append(self.prefix.dump())
+        output.append(self.keyword)
+        output.append(self.declaration.dump())
+        output.append(self.body.dump())
+        return " ".join(output)
+
+
+class IncludeUseCaseUsage:
+    # IncludeUseCaseUsage :
+    # 	prefix=OccurrenceUsagePrefix 'include'
+    #   ( UseCaseUsageKeyword declaration=UsageDeclaration?
+    #   | ors=OwnedReferenceSubsetting fsp=FeatureSpecializationPart? )
+    #   valuepart=ValuePart?
+    #   body=CaseBody
+    # ;
+    def __init__(self, definition):
+        self.prefix = None
+        self.keyword = "include"
+        self.ors = None
+        self.fsp = None
+        self.declaration = None
+        self.valuepart = None
+        if valid_definition(definition, self.__class__.__name__):
+            if definition["prefix"] is not None:
+                self.prefix = OccurrenceUsagePrefix(definition["prefix"])
+            if definition["ors"] is not None:
+                self.ors = OwnedReferenceSubsetting(definition["ors"])
+                if definition["fsp"] is not None:
+                    self.fsp = FeatureSpecializationPart(definition["fsp"])
+            else:
+                if definition["declaration"] is not None:
+                    self.declaration = UsageDeclaration(definition["declaration"])
+            if definition["valuepart"] is not None:
+                self.valuepart = ValuePart(definition["valuepart"])
+            self.body = CaseBody(definition["body"])
+
+    def dump(self):
+        output = []
+        if self.prefix is not None:
+            output.append(self.prefix.dump())
+        output.append(self.keyword)
+        if self.ors is not None:
+            output.append(self.ors.dump())
+            if self.fsp is not None:
+                output.append(self.fsp.dump())
+        else:
+            output.append("use case")
+            if self.declaration is not None:
+                output.append(self.declaration.dump())
+        if self.valuepart is not None:
+            output.append(self.valuepart.dump())
+        output.append(self.body.dump())
+        return " ".join(filter(None, output))
 
 
 class BehaviorUsageElement:
