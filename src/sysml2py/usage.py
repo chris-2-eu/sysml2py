@@ -13,7 +13,12 @@ Created on Fri Jun 30 23:23:31 2023
 
 import uuid as uuidlib
 
-import astropy.units as u
+import pint
+
+# Use the shared application registry so that quantities created by library
+# users with pint.get_application_registry() interoperate with sysml2py.
+# (Quantities from different registries cannot be mixed in pint.)
+ureg = pint.get_application_registry()
 
 from sysml2py.formatting import classtree
 
@@ -351,13 +356,18 @@ class Attribute(Usage):
         return package
 
     def set_value(self, value):
-        if not isinstance(value, u.quantity.Quantity):
-            value = value * u.one
-        if isinstance(value, u.quantity.Quantity):
-            if str(value.unit) != "":
+        if not isinstance(value, pint.Quantity):
+            value = ureg.Quantity(value)
+        if isinstance(value, pint.Quantity):
+            # "~" formats units in their short form ("kg", "N", "m / s"),
+            # matching the strings astropy's str(unit) used to produce.
+            # For dimensionless quantities it yields "", so the original
+            # emptiness check is preserved.
+            unit_str = f"{value.units:~}"
+            if unit_str != "":
                 package_units = {
                     "name": "QualifiedName",
-                    "names": [str(value.unit)],
+                    "names": [unit_str],
                 }
                 package_units = {
                     "name": "FeatureReferenceMember",
@@ -479,7 +489,7 @@ class Attribute(Usage):
                 "name": "BaseExpression",
                 "ownedRelationship": {
                     "name": "LiteralInteger",
-                    "value": str(value.value),
+                    "value": str(float(value.magnitude)),
                 },
             }
             package = {
@@ -603,7 +613,7 @@ class Attribute(Usage):
             ]
             .memberElement.dump()
         )
-        return real * u.Unit(unit)
+        return ureg.Quantity(real, unit)
 
 
 class Part(Usage):

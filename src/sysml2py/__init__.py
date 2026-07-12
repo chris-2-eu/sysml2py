@@ -6,12 +6,12 @@ Created on Mon May 29 23:26:16 2023
 @author: christophercox
 """
 
-__all__ = ["load", "loads", "load_grammar"]
+__all__ = ["load", "loads", "load_grammar", "ureg"]
 __author__ = "Christopher Cox"
 __version__ = "0.1.0"
 
 # These are interchangable
-from sysml2py.usage import Item, Attribute, Part, Port
+from sysml2py.usage import Item, Attribute, Part, Port, ureg
 
 # These are definition only
 from sysml2py.definition import Model, Package

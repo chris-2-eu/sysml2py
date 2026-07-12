@@ -504,10 +504,10 @@ def test_port_directed_error():
 # This test doesn't work right now
 # def test_item_def_subchild():
 #     i = Item(definition=True)._set_name("Engine")
-#     import astropy.units as u
+#     from sysml2py import ureg
 
 #     a = Attribute()._set_name("mass")
-#     a.set_value(100 * u.kg)
+#     a.set_value(100 * ureg.kg)
 #     i._set_child(a)
 
 #     text = """item Engine {
@@ -520,7 +520,7 @@ def test_port_directed_error():
 
 
 def test_attribute_definition():
-    import astropy.units as u
+    from sysml2py import ureg
 
     a = Attribute(definition=True)._set_name("mass")
 
@@ -532,10 +532,10 @@ def test_attribute_definition():
 
 
 def test_attribute_units():
-    import astropy.units as u
+    from sysml2py import ureg
 
     a = Attribute()._set_name("mass")
-    a.set_value(100 * u.kg)
+    a.set_value(100 * ureg.kg)
 
     text = """attribute mass= 100.0 [kg];"""
 
@@ -545,9 +545,9 @@ def test_attribute_units():
 
 
 def test_attribute_getunits():
-    import astropy.units as u
+    from sysml2py import ureg
 
-    value = 100 * u.kg
+    value = 100 * ureg.kg
 
     a = Attribute()._set_name("mass")
     a.set_value(value)

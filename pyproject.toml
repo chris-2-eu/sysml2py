@@ -108,5 +108,5 @@ packages = [{ include = "sysml2py", from = "src" }]
 [tool.poetry.dependencies]
 python = "^3.9"
 textx = "^3.1.1"
-astropy = "^5.3.1"
+pint = ">=0.23"
 pyyaml = "^6.0.1"
