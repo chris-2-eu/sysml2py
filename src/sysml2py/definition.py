@@ -20,7 +20,7 @@ from sysml2py.grammar.classes import (
 )
 from sysml2py.grammar.classes import Package as PackageGrammar
 
-from sysml2py import Part, Item, UseCase
+from sysml2py import Part, Item, Port, Attribute, UseCase
 
 ModelType = TypeVar("Model", bound="Model")
 
@@ -118,6 +118,10 @@ class Package:
         self.children = []
         self.typedby = None
         self.grammar = PackageGrammar()
+        # Raw grammar Import objects (`import X::*;` / `import X::member;`).
+        # Preserved as an opaque passthrough on load so they round-trip
+        # through dump() without a friendly mutation API of their own.
+        self.imports = []
 
     def _set_name(self, name, short=False):
         if short:
@@ -159,8 +163,10 @@ class Package:
                     return child._get_child(featurechain)
 
     def _ensure_body(self):
-        # Add children
-        body = []
+        # Imports are peers of PackageMember at the PackageBody level (not
+        # nested inside one), and are emitted first, matching where they
+        # conventionally appear in real SysML files.
+        body = [imp.get_definition() for imp in self.imports]
         for abc in self.children:
             v = abc._get_definition(child="PackageBody")
             if isinstance(v, list):
@@ -206,6 +212,18 @@ class Package:
         self.name = grammar.declaration.identification.declaredName
         self.grammar = grammar
         for child in grammar.body.children:
+            if child.__class__.__name__ == "Import":
+                # Import is a peer of PackageMember at the PackageBody
+                # level, not nested inside one - keep it as an opaque
+                # passthrough rather than drilling into `.children[0]`
+                # (which is only meaningful for PackageMember).
+                self.imports.append(child)
+                continue
+            if child.__class__.__name__ != "PackageMember":
+                raise NotImplementedError(
+                    f"Package body member {child.__class__.__name__!r} is not "
+                    "yet supported."
+                )
             if child.children[0].__class__.__name__ == "UsageElement":
                 # PackageMember -> UsageElement
                 if (
@@ -247,6 +265,31 @@ class Package:
                 ):
                     self.children.append(
                         UseCase().load_from_grammar(child.children[0].children[0])
+                    )
+                elif (
+                    child.children[0].children[0].__class__.__name__ == "PartDefinition"
+                ):
+                    self.children.append(
+                        Part(definition=True).load_from_grammar(
+                            child.children[0].children[0]
+                        )
+                    )
+                elif (
+                    child.children[0].children[0].__class__.__name__ == "PortDefinition"
+                ):
+                    self.children.append(
+                        Port(definition=True).load_from_grammar(
+                            child.children[0].children[0]
+                        )
+                    )
+                elif (
+                    child.children[0].children[0].__class__.__name__
+                    == "AttributeDefinition"
+                ):
+                    self.children.append(
+                        Attribute(definition=True).load_from_grammar(
+                            child.children[0].children[0]
+                        )
                     )
                 else:
                     print(child.children[0].children[0].__class__.__name__)

@@ -5376,7 +5376,7 @@ class FeatureSpecializationPart:
         }
 
         if self.multiplicity is not None:
-            output["multiplicity"].get_definition()
+            output["multiplicity"] = self.multiplicity.get_definition()
 
         if len(self.specializations) > 0:
             for child in self.specializations:
@@ -5415,6 +5415,14 @@ class MultiplicityPart:
 
         return " ".join(output)
 
+    def get_definition(self):
+        return {
+            "name": self.__class__.__name__,
+            "isOrdered": self.isOrdered,
+            "isNonunique": self.isNonunique,
+            "ownedRelationship": [child.get_definition() for child in self.children],
+        }
+
 
 class OwnedMultiplicity:
     def __init__(self, definition):
@@ -5426,6 +5434,12 @@ class OwnedMultiplicity:
     def dump(self):
         output = [child.dump() for child in self.children]
         return "".join(output)
+
+    def get_definition(self):
+        return {
+            "name": self.__class__.__name__,
+            "ownedRelatedElement": [child.get_definition() for child in self.children],
+        }
 
 
 class MultiplicityRange:
@@ -5439,6 +5453,12 @@ class MultiplicityRange:
         output = [child.dump() for child in self.children]
         return "[" + "..".join(output) + "]"
 
+    def get_definition(self):
+        return {
+            "name": self.__class__.__name__,
+            "ownedRelationship": [child.get_definition() for child in self.children],
+        }
+
 
 class MultiplicityExpressionMember:
     def __init__(self, definition):
@@ -5449,6 +5469,12 @@ class MultiplicityExpressionMember:
 
     def dump(self):
         return "".join([child.dump() for child in self.children])
+
+    def get_definition(self):
+        return {
+            "name": self.__class__.__name__,
+            "ownedRelatedElement": [child.get_definition() for child in self.children],
+        }
 
 
 class MultiplicityRelatedElement:
@@ -5464,6 +5490,12 @@ class MultiplicityRelatedElement:
 
     def dump(self):
         return str(self.element.dump())
+
+    def get_definition(self):
+        return {
+            "name": self.__class__.__name__,
+            "ownedRelatedElement": self.element.get_definition(),
+        }
 
 
 class LiteralString:
@@ -5503,6 +5535,9 @@ class LiteralInfinity:
 
     def dump(self):
         return self.element
+
+    def get_definition(self):
+        return {"name": self.__class__.__name__}
 
 
 class FeatureSpecialization:
@@ -6037,6 +6072,12 @@ class RelationshipBody:
         else:
             return "{" + "\n".join([child.dump() for child in self.children]) + "}"
 
+    def get_definition(self):
+        return {
+            "name": self.__class__.__name__,
+            "ownedRelationship": [child.get_definition() for child in self.children],
+        }
+
 
 class OwnedAnnotation:
     def __init__(self, definition):
@@ -6070,6 +6111,13 @@ class Import:
             output.append(child.dump())
         return "".join(output) + self.body.dump()
 
+    def get_definition(self):
+        return {
+            "name": self.__class__.__name__,
+            "ownedRelationship": self.children[0].get_definition(),
+            "body": self.body.get_definition(),
+        }
+
 
 class MembershipImport:
     def __init__(self, definition):
@@ -6079,6 +6127,13 @@ class MembershipImport:
 
     def dump(self):
         return " ".join([self.prefix.dump(), self.membership.dump()])
+
+    def get_definition(self):
+        return {
+            "name": self.__class__.__name__,
+            "prefix": self.prefix.get_definition(),
+            "membership": self.membership.get_definition(),
+        }
 
 
 class ImportedMembership:
@@ -6092,6 +6147,13 @@ class ImportedMembership:
             return self.name.dump()
         else:
             return self.name.dump() + "::**"
+
+    def get_definition(self):
+        return {
+            "name": self.__class__.__name__,
+            "importedMembership": self.name.get_definition(),
+            "isRecursive": self.isRecursive,
+        }
 
 
 class NamespaceImport:
@@ -6108,6 +6170,14 @@ class NamespaceImport:
 
     def dump(self):
         return self.prefix.dump() + self.namespace.dump()
+
+    def get_definition(self):
+        return {
+            "name": self.__class__.__name__,
+            "prefix": self.prefix.get_definition(),
+            "ownedRelatedElement": [],
+            "namespace": self.namespace.get_definition(),
+        }
 
 
 class ImportPrefix:
@@ -6129,6 +6199,13 @@ class ImportPrefix:
         else:
             return self.visibility.dump() + self.keyword
 
+    def get_definition(self):
+        output = {"name": self.__class__.__name__, "visibility": None}
+        if self.visibility is not None:
+            output["visibility"] = self.visibility.get_definition()
+        output["isImportAll"] = self.keyword == "import all "
+        return output
+
 
 class ImportedNamespace:
     # The grammar for this file is currently broken.
@@ -6138,6 +6215,12 @@ class ImportedNamespace:
 
     def dump(self):
         return self.namespaces.dump() + "::*"
+
+    def get_definition(self):
+        return {
+            "name": self.__class__.__name__,
+            "namespace": self.namespaces.get_definition(),
+        }
 
 
 class QualifiedName:

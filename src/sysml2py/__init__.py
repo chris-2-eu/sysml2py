@@ -110,19 +110,25 @@ def load_grammar(fp, debug=False, enforce=False):
 
     from sysml2py.formatting import reformat
 
+    # memoization=True enables Arpeggio's packrat parsing. Without it, PEG
+    # backtracking on this grammar's deeply nested expression rules (used by
+    # attribute values, guard/accept conditions, constraints, etc.) is
+    # catastrophically exponential - real-world files with non-trivial
+    # expressions (e.g. `if a.b == c and d`) can hang and consume many GB of
+    # RAM instead of failing fast or parsing in well under a second.
     if enforce:  # pragma: no cover
         # This can only be run in development mode.
         from textx import metamodel_from_str, TextXSyntaxError
 
         grammar = enforce_grammar()
-        meta = metamodel_from_str(grammar)
+        meta = metamodel_from_str(grammar, memoization=True)
     else:
         import importlib.resources as pkg_resources
         import sysml2py
         from textx import metamodel_from_file, TextXSyntaxError
 
         grammar = str((pkg_resources.files(sysml2py) / "grammar/SysML_compiled.tx"))
-        meta = metamodel_from_file(grammar)
+        meta = metamodel_from_file(grammar, memoization=True)
 
     try:
         model = meta.model_from_str(s, debug=debug)

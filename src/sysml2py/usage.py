@@ -71,9 +71,16 @@ class Usage:
             )
 
         if len(body) > 0:
-            getattr(self.grammar, subgrammar).completion.body.body = DefinitionBody(
+            new_body = DefinitionBody(
                 {"name": "DefinitionBody", "ownedRelatedElement": body}
             )
+            if subgrammar == "usage":
+                self.grammar.usage.completion.body.body = new_body
+            else:
+                # Definition-shaped grammar objects (e.g. PartDefinition's
+                # `.definition`) hold their body directly - there is no
+                # `.completion` wrapper, unlike the usage shape.
+                self.grammar.definition.body = new_body
         return self
 
     def usage_dump(self, child):
@@ -277,9 +284,19 @@ class Usage:
         else:
             # This is a definition
             u_name = grammar.definition.declaration.identification.declaredName
-            a_children = grammar.definition.body.children
-            if len(a_children) > 0:
-                children = a_children[0]
+            # grammar.definition.body.children is a list of DefinitionBodyItem
+            # objects, each wrapping exactly one OccurrenceUsageMember /
+            # NonOccurrenceUsageMember / DefinitionMember (`.children[0]`),
+            # which in turn wraps exactly one OccurrenceUsageElement /
+            # NonOccurrenceUsageElement / DefinitionElement (`.children[0]`
+            # again) - unwrap to that so the shared loop below (which
+            # expects one more `.children` hop to reach the actual
+            # AttributeUsage/StructureUsageElement/nested-definition object,
+            # matching what the usage branch above already produces) works
+            # the same way for both usages and definitions.
+            children = [
+                item.children[0].children[0] for item in grammar.definition.body.children
+            ]
 
         if u_name is not None:
             self.name = u_name
@@ -294,11 +311,21 @@ class Usage:
                 self.children.append(Attribute().load_from_grammar(sc))
             elif sc.__class__.__name__ == "ItemDefinition":
                 self.children.append(Item().load_from_grammar(sc))
+            elif sc.__class__.__name__ == "PartDefinition":
+                self.children.append(Part(definition=True).load_from_grammar(sc))
+            elif sc.__class__.__name__ == "PortDefinition":
+                self.children.append(Port(definition=True).load_from_grammar(sc))
+            elif sc.__class__.__name__ == "AttributeDefinition":
+                self.children.append(Attribute(definition=True).load_from_grammar(sc))
+            elif sc.__class__.__name__ == "UseCaseDefinition":
+                self.children.append(UseCase().load_from_grammar(sc))
             elif sc.__class__.__name__ == "StructureUsageElement":
                 if sc.children.__class__.__name__ == "PartUsage":
                     self.children.append(Part().load_from_grammar(sc.children))
                 elif sc.children.__class__.__name__ == "ItemUsage":
                     self.children.append(Item().load_from_grammar(sc.children))
+                elif sc.children.__class__.__name__ == "PortUsage":
+                    self.children.append(Port().load_from_grammar(sc.children))
                 else:
                     print(child.children.children.__class__.__name__)
                     raise NotImplementedError
