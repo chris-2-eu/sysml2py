@@ -11,7 +11,7 @@ __author__ = "Christopher Cox"
 __version__ = "0.1.0"
 
 # These are interchangable
-from sysml2py.usage import Item, Attribute, Part, Port, ureg
+from sysml2py.usage import Item, Attribute, Part, Port, UseCase, Actor, ureg
 
 # These are definition only
 from sysml2py.definition import Model, Package

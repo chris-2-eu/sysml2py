@@ -20,7 +20,7 @@ from sysml2py.grammar.classes import (
 )
 from sysml2py.grammar.classes import Package as PackageGrammar
 
-from sysml2py import Part, Item
+from sysml2py import Part, Item, UseCase
 
 ModelType = TypeVar("Model", bound="Model")
 
@@ -240,6 +240,13 @@ class Package:
                 ):
                     self.children.append(
                         Item().load_from_grammar(child.children[0].children[0])
+                    )
+                elif (
+                    child.children[0].children[0].__class__.__name__
+                    == "UseCaseDefinition"
+                ):
+                    self.children.append(
+                        UseCase().load_from_grammar(child.children[0].children[0])
                     )
                 else:
                     print(child.children[0].children[0].__class__.__name__)

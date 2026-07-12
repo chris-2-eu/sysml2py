@@ -9,8 +9,9 @@ Created on Tue Jul 11 16:46:28 2023
 import pytest
 
 from sysml2py.formatting import classtree
-from sysml2py import Package, Item, Model, Attribute, Part, Port
+from sysml2py import Package, Item, Model, Attribute, Part, Port, UseCase, Actor
 from sysml2py import load_grammar as loads
+from sysml2py.grammar.classes import UseCaseDefinition, UseCaseUsage
 
 
 def test_package():
@@ -564,3 +565,127 @@ def test_attribute_nounits():
     q = classtree(loads(text))
 
     assert a.dump() == q.dump()
+
+
+def test_usecase_definition():
+    uc = UseCase(definition=True, name="DriveVehicle")
+
+    text = """use case def DriveVehicle;"""
+    q = classtree(loads(text))
+
+    assert uc.dump() == q.dump()
+
+
+def test_usecase_definition_getname():
+    uc = UseCase(definition=True, name="DriveVehicle")
+    assert uc._get_name() == "DriveVehicle"
+
+
+def test_usecase_definition_with_actor():
+    uc = UseCase(definition=True, name="DriveVehicle")
+    uc.add_actor("Driver")
+
+    text = """use case def DriveVehicle {
+        actor Driver;
+    }"""
+    q = classtree(loads(text))
+
+    assert uc.dump() == q.dump()
+    assert [a.name for a in uc.actors] == ["Driver"]
+
+
+def test_usecase_definition_with_multiple_actors():
+    uc = UseCase(definition=True, name="ProcessOrder")
+    uc.add_actor("Customer")
+    uc.add_actor("Clerk")
+
+    text = """use case def ProcessOrder {
+        actor Customer;
+        actor Clerk;
+    }"""
+    q = classtree(loads(text))
+
+    assert uc.dump() == q.dump()
+    assert [a.name for a in uc.actors] == ["Customer", "Clerk"]
+
+
+def test_usecase_usage():
+    uc = UseCase(name="uc1")
+
+    text = """use case uc1;"""
+    q = classtree(loads(text))
+
+    assert uc.dump() == q.dump()
+
+
+def test_actor_repr():
+    assert repr(Actor("Driver")) == "Actor('Driver')"
+
+
+def test_usecase_load_from_grammar_actors_and_includes():
+    text = """use case def Login {
+        actor Customer;
+        include use case;
+        include ValidateCredentials;
+    }"""
+    parsed = loads(text)
+    grammar = UseCaseDefinition(
+        parsed["ownedRelationship"][0]["ownedRelatedElement"]["ownedRelatedElement"]
+    )
+
+    uc = UseCase().load_from_grammar(grammar)
+
+    assert uc.name == "Login"
+    assert [a.name for a in uc.actors] == ["Customer"]
+    assert uc.includes == ["ValidateCredentials"]
+    assert uc.dump() == classtree(parsed).dump()
+
+
+def test_usecase_usage_load_from_grammar():
+    text = """use case uc1 {
+        actor Rider;
+    }"""
+    parsed = loads(text)
+    grammar = UseCaseUsage(
+        parsed["ownedRelationship"][0]["ownedRelatedElement"]["ownedRelatedElement"][
+            "ownedRelatedElement"
+        ]["ownedRelationship"]
+    )
+
+    uc = UseCase().load_from_grammar(grammar)
+
+    assert uc.name == "uc1"
+    assert [a.name for a in uc.actors] == ["Rider"]
+    assert uc.dump() == classtree(parsed).dump()
+
+
+def test_package_usecase_child():
+    p1 = Package()._set_name("Demo")
+    uc = UseCase(definition=True, name="DriveVehicle")
+    uc.add_actor("Driver")
+    p1._set_child(uc)
+    p = classtree(p1._get_definition())
+
+    text = """package Demo {
+       use case def DriveVehicle {
+          actor Driver;
+       }
+    }"""
+
+    q = Model().load(text)
+
+    assert p.dump() == q.dump()
+
+
+def test_package_usecase_load_from_grammar():
+    text = """package Demo {
+       use case def DriveVehicle {
+          actor Driver;
+       }
+    }"""
+
+    q = Model().load(text)
+    uc = q._get_child("Demo.DriveVehicle")
+
+    assert uc.name == "DriveVehicle"
+    assert [a.name for a in uc.actors] == ["Driver"]
