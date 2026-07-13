@@ -5612,6 +5612,9 @@ class LiteralReal:
     def dump(self):
         return self.element
 
+    def get_definition(self):
+        return {"name": self.__class__.__name__, "value": self.element}
+
 
 class LiteralInfinity:
     def __init__(self, definition):

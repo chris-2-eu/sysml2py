@@ -581,6 +581,26 @@ def test_usecase_definition_getname():
     assert uc._get_name() == "DriveVehicle"
 
 
+def test_literal_real_with_units_round_trips_through_model_load():
+    # Model.load() always rebuilds its grammar via get_definition() (see
+    # definition.py Model.load/_ensure_body), so any attribute value that
+    # parses to a LiteralReal (a real-number literal with a unit, e.g.
+    # "5 [V]") exercises that path. LiteralReal was previously missing
+    # get_definition() (unlike its sibling LiteralInteger), which raised
+    # AttributeError for any real-valued, unit-carrying attribute nested in
+    # a part/item/port definition.
+    import sysml2py
+
+    text = """package Demo {
+    part def Battery {
+        attribute voltage = 5 [V];
+    }
+}"""
+    m = sysml2py.loads(text)
+    assert "voltage" in m.dump()
+    assert "5[V]" in m.dump().replace(" ", "").replace("\n", "")
+
+
 def test_usecase_definition_with_actor():
     uc = UseCase(definition=True, name="DriveVehicle")
     uc.add_actor("Driver")
