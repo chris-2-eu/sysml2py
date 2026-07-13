@@ -2936,6 +2936,12 @@ class SubclassificationPart:
     def dump(self):
         return self.keyword + ", ".join([child.dump() for child in self.children])
 
+    def get_definition(self):
+        return {
+            "name": self.__class__.__name__,
+            "ownedRelationship": [child.get_definition() for child in self.children],
+        }
+
 
 class OwnedSubclassification:
     def __init__(self, definition):
@@ -2944,6 +2950,12 @@ class OwnedSubclassification:
 
     def dump(self):
         return self.name.dump()
+
+    def get_definition(self):
+        return {
+            "name": self.__class__.__name__,
+            "superclassifier": self.name.get_definition(),
+        }
 
 
 class DefinitionBody:

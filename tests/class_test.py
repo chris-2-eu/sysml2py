@@ -629,6 +629,28 @@ def test_directed_port_usage_round_trips_through_model_load():
     assert "inportrf_in:RfInputPort;" in dumped
 
 
+def test_generalized_part_definition_round_trips_through_model_load():
+    # `part def X :> Y { ... }` (generalization) already had grammar-level
+    # support (SubclassificationPart/OwnedSubclassification), but neither
+    # class had get_definition() (only dump()), so Model.load() raised
+    # AttributeError for any definition with a superclass - found while
+    # extending sysml2pyArchitect's block-definition-diagram view to draw
+    # generalization edges.
+    import sysml2py
+
+    text = """package Demo {
+    part def Amplifier {
+        attribute gain : Real;
+    }
+    part def LowNoiseAmplifier :> Amplifier {
+        attribute noiseFigure : Real;
+    }
+}"""
+    m = sysml2py.loads(text)
+    dumped = m.dump().replace(" ", "").replace("\n", "")
+    assert "partdefLowNoiseAmplifier:>Amplifier" in dumped
+
+
 def test_usecase_definition_with_actor():
     uc = UseCase(definition=True, name="DriveVehicle")
     uc.add_actor("Driver")
