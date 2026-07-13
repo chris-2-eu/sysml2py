@@ -5152,6 +5152,19 @@ class OccurrenceUsagePrefix:
 
         return " ".join(output)
 
+    def get_definition(self):
+        return {
+            "name": self.__class__.__name__,
+            "prefix": self.prefix.get_definition(),
+            "isIndividual": self.isIndividual,
+            "portionKind": (
+                self.portionKind.get_definition()
+                if self.portionKind is not None
+                else None
+            ),
+            "usageExtension": [],
+        }
+
 
 class PortionKind:
     def __init__(self, definition):
@@ -5181,6 +5194,13 @@ class BasicUsagePrefix:
             output.append("ref")
 
         return " ".join(output)
+
+    def get_definition(self):
+        return {
+            "name": self.__class__.__name__,
+            "prefix": self.prefix.get_definition() if self.prefix is not None else None,
+            "isReference": self.isReference,
+        }
 
 
 class RefPrefix:

@@ -601,6 +601,34 @@ def test_literal_real_with_units_round_trips_through_model_load():
     assert "5[V]" in m.dump().replace(" ", "").replace("\n", "")
 
 
+def test_directed_port_usage_round_trips_through_model_load():
+    # SysML v2 places the FeatureDirection keyword (in/out/inout) BEFORE
+    # the usage keyword (e.g. "in port fuelIn : FuelPort;"), not after
+    # ("port in fuelIn : ...") - confirmed against the textual-notation
+    # syntax reference. Grammar-level support for this already existed
+    # (OccurrenceUsagePrefix/RefPrefix/FeatureDirection), but
+    # OccurrenceUsagePrefix and BasicUsagePrefix were missing
+    # get_definition() (only had dump()), so any directed usage - not
+    # port-specific, also affects part/item/attribute - raised
+    # AttributeError as soon as Model.load() tried to reconstruct it.
+    import sysml2py
+
+    text = """package Demo {
+    port def RfOutputPort;
+    port def RfInputPort;
+    part def Antenna {
+        out port rf_out : RfOutputPort;
+    }
+    part def Amplifier {
+        in port rf_in : RfInputPort;
+    }
+}"""
+    m = sysml2py.loads(text)
+    dumped = m.dump().replace(" ", "").replace("\n", "")
+    assert "outportrf_out:RfOutputPort;" in dumped
+    assert "inportrf_in:RfInputPort;" in dumped
+
+
 def test_usecase_definition_with_actor():
     uc = UseCase(definition=True, name="DriveVehicle")
     uc.add_actor("Driver")
